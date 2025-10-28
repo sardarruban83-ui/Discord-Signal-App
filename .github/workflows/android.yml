@@ -1,4 +1,4 @@
-name: Android CI - build debug APK
+name: Android CI - Build Debug APK
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
@@ -19,19 +19,20 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Make gradlew executable (if present)
-      run: |
-        if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
+    - name: Install Gradle
+      run: sudo apt-get update && sudo apt-get install gradle -y
 
-    - name: Generate gradle wrapper (if not present)
+    - name: Generate Gradle Wrapper (if missing)
       run: |
-        if [ ! -f ./gradlew ]; then sudo apt update && sudo apt install -y gradle; gradle wrapper --gradle-version 7.6 || true; fi
+        if [ ! -f "./gradlew" ]; then
+          gradle wrapper --gradle-version 7.6
+        fi
+        chmod +x ./gradlew
 
-    - name: Build debug APK
-      run: |
-        if [ -f ./gradlew ]; then ./gradlew assembleDebug --no-daemon; else gradle assembleDebug --no-daemon; fi
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --no-daemon
 
-    - name: Upload debug APK
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug-apk
