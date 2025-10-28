@@ -1,8 +1,10 @@
 package com.example.discordsignal
 
 import android.os.Bundle
+import android.os.Environment
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -22,8 +24,8 @@ class MainActivity : AppCompatActivity() {
             t.printStackTrace(PrintWriter(sw))
             val stack = sw.toString()
 
+            // 1) Write to internal app file (original)
             try {
-                // write to internal file so you can read it from Files app => Android/data/<package>/files/
                 openFileOutput("crash_log.txt", MODE_PRIVATE).use {
                     it.write(stack.toByteArray())
                 }
@@ -31,10 +33,19 @@ class MainActivity : AppCompatActivity() {
                 // ignore write errors
             }
 
+            // 2) ALSO try to write to public Downloads so you can fetch it easily
+            try {
+                val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val outFile = File(downloads, "tradelinker_crash_log.txt")
+                outFile.writeText(stack)
+            } catch (io: Exception) {
+                // ignore; this may fail on some Android versions, but usually works for debug builds
+            }
+
             // show toast so you know it crashed and log written
             Toast.makeText(
                 this,
-                "App crashed on start — crash log saved to internal file (crash_log.txt)",
+                "App crashed on start — crash log saved (crash_log.txt or tradelinker_crash_log.txt)",
                 Toast.LENGTH_LONG
             ).show()
 
