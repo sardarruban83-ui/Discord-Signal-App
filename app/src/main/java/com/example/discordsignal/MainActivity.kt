@@ -1,39 +1,45 @@
 package com.example.discordsignal
 
-import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
-import android.widget.Button
-import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.io.PrintWriter
+import java.io.StringWriter
 
 class MainActivity : AppCompatActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        // Catch any startup crash and write it to a file for inspection
+        try {
+            super.onCreate(savedInstanceState)
+            setContentView(R.layout.activity_main)
 
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val webhookInput = findViewById<EditText>(R.id.webhook_input)
-        val keywordsInput = findViewById<EditText>(R.id.keywords_input)
-        val allowPackages = findViewById<EditText>(R.id.allow_input)
-        val saveBtn = findViewById<Button>(R.id.save_button)
-        val openNotifAccess = findViewById<Button>(R.id.open_notif_button)
+            // existing init code (if any) goes after this line
+            // Example: findViewById<Button>(R.id.myButton)?.setOnClickListener { ... }
 
-        webhookInput.setText(prefs.getString("webhook_url", ""))
-        keywordsInput.setText(prefs.getString("keywords", ""))
-        allowPackages.setText(prefs.getString("allow_packages", ""))
+        } catch (t: Throwable) {
+            // get full stacktrace
+            val sw = StringWriter()
+            t.printStackTrace(PrintWriter(sw))
+            val stack = sw.toString()
 
-        saveBtn.setOnClickListener {
-            prefs.edit()
-                .putString("webhook_url", webhookInput.text.toString().trim())
-                .putString("keywords", keywordsInput.text.toString().trim())
-                .putString("allow_packages", allowPackages.text.toString().trim())
-                .apply()
-        }
+            try {
+                // write to internal file so you can read it from Files app => Android/data/<package>/files/
+                openFileOutput("crash_log.txt", MODE_PRIVATE).use {
+                    it.write(stack.toByteArray())
+                }
+            } catch (io: Exception) {
+                // ignore write errors
+            }
 
-        openNotifAccess.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            // show toast so you know it crashed and log written
+            Toast.makeText(
+                this,
+                "App crashed on start — crash log saved to internal file (crash_log.txt)",
+                Toast.LENGTH_LONG
+            ).show()
+
+            // rethrow so behavior is same as before (optional)
+            throw t
         }
     }
 }
