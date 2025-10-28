@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App theme that uses AppCompat's no-action-bar parent -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- customize colors or remove lines if you like -->
+    </style>
+</resources>

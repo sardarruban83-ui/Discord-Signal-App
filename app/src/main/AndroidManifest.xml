@@ -2,21 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.discordsignal">
 
-    <!-- Internet permission -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Permission for notification-listener service -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
 
     <application
         android:allowBackup="true"
-        android:label="TradeLinker"
+        android:label="@string/app_name"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:theme="@style/AppTheme">
 
-        <!-- Main launcher activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -26,7 +22,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Notification Listener Service -->
         <service
             android:name=".NotificationListener"
             android:label="@string/app_name"
