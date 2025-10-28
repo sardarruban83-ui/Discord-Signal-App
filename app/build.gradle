@@ -1,28 +1,31 @@
-plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
-}
+/*
+ Minimal app/build.gradle using legacy apply-plugin style so
+ the kotlin-gradle-plugin classpath in root build.gradle is used.
+*/
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 android {
-    compileSdk 33
+    compileSdkVersion 33
 
     defaultConfig {
         applicationId "com.example.discordsignal"
-        minSdk 21
-        targetSdk 33
+        minSdkVersion 21
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
     }
 
     buildTypes {
         debug {
-            signingConfig null
+            // keep default debug signing
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     namespace 'com.example.discordsignal'
 }
 
