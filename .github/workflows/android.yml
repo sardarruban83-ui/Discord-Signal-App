@@ -19,20 +19,19 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Make gradlew executable (if present)
-      run: |
-        if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
-
-    - name: Install Gradle 7.5 (use a known Gradle version so build is compatible)
+    - name: Install Gradle 7.5
       run: |
         wget https://services.gradle.org/distributions/gradle-7.5-bin.zip -O gradle-7.5.zip
         unzip -q gradle-7.5.zip -d $HOME
         echo "$HOME/gradle-7.5/bin" >> $GITHUB_PATH
 
-    - name: Build debug APK
+    - name: Show gradle version (debug)
+      run: gradle --version
+
+    - name: Build debug APK (use system Gradle)
       run: |
-        # prefer ./gradlew if present, otherwise use system gradle (we added Gradle 7.5 above)
-        if [ -f ./gradlew ]; then ./gradlew assembleDebug --no-daemon; else gradle assembleDebug --no-daemon; fi
+        # do NOT use ./gradlew even if present — use the Gradle we installed
+        gradle assembleDebug --no-daemon
 
     - name: Upload debug APK (if produced)
       uses: actions/upload-artifact@v4
