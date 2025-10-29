@@ -5,6 +5,7 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
+import java.io.FileOutputStream
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -14,7 +15,7 @@ class MainActivity : AppCompatActivity() {
             super.onCreate(savedInstanceState)
             setContentView(R.layout.activity_main)
 
-            // Your existing initialization code here
+            // existing init code goes here
         } catch (t: Throwable) {
             val sw = StringWriter()
             t.printStackTrace(PrintWriter(sw))
@@ -25,17 +26,22 @@ class MainActivity : AppCompatActivity() {
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                     "tradelinker_crash.txt"
                 )
-                file.writeText(crashText)
+                FileOutputStream(file, false).use { stream ->
+                    stream.write(crashText.toByteArray())
+                    stream.flush()
+                    stream.fd.sync() // ensure it's saved before process ends
+                }
             } catch (io: Exception) {
                 io.printStackTrace()
             }
 
             Toast.makeText(
                 this,
-                "Startup crash logged to Download/tradelinker_crash.txt",
+                "Crash saved to /Download/tradelinker_crash.txt",
                 Toast.LENGTH_LONG
             ).show()
 
+            android.util.Log.e("TradeLinker", "CRASH", t)
             throw t
         }
     }
