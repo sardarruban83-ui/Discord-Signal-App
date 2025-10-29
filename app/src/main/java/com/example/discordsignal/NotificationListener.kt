@@ -3,57 +3,71 @@ package com.example.discordsignal
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.io.OutputStreamWriter
+import org.json.JSONObject
 
 class NotificationListener : NotificationListenerService() {
-    private val TAG = "NotificationListener"
-
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
-        try {
-            val pkg = sbn.packageName ?: return
-            val notif = sbn.notification
-            val title = notif.extras?.getString("android.title") ?: ""
-            val text = notif.extras?.getCharSequence("android.text")?.toString() ?: ""
-            Log.i(TAG, "Notif from=$pkg title=$title text=$text")
-
-            // Forward minimal payload asynchronously (replace FORWARDER_URL if needed)
-            val forwarderUrl = "http://72.61.145.142:5000/forward" // adjust if your forwarder endpoint differs
-            val payload = "{\"package\":\"$pkg\",\"title\":${escapeJson(title)},\"text\":${escapeJson(text)}}"
-
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val url = URL(forwarderUrl)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "POST"
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    conn.doOutput = true
-                    OutputStreamWriter(conn.outputStream).use { it.write(payload) }
-                    val code = conn.responseCode
-                    Log.i(TAG, "Forward status=$code")
-                    conn.disconnect()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Forward failed: ${e.message}", e)
-                }
-            }
-        } catch (t: Throwable) {
-            Log.e(TAG, "onNotificationPosted crash: ${t.message}", t)
-        }
-    }
+    private val TAG = "TradeLinkerNL"
+    // Put your webhook here (or update later in code / UI)
+    private val WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"
 
     override fun onListenerConnected() {
+        super.onListenerConnected()
         Log.i(TAG, "NotificationListener connected")
     }
 
-    override fun onListenerDisconnected() {
-        Log.i(TAG, "NotificationListener disconnected")
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        try {
+            val pkg = sbn.packageName ?: "unknown"
+            val notif = sbn.notification
+            val extras = notif.extras
+            val title = extras.getString("android.title") ?: ""
+            val text = extras.getCharSequence("android.text")?.toString() ?: ""
+            Log.i(TAG, "Received: pkg=$pkg title='$title' text='$text'")
+
+            // Build JSON payload
+            val payload = JSONObject()
+            payload.put("package", pkg)
+            payload.put("title", title)
+            payload.put("text", text)
+            payload.put("timestamp", System.currentTimeMillis())
+
+            // Send to webhook off the main thread
+            if (WEBHOOK_URL.isNotBlank() && WEBHOOK_URL != "YOUR_WEBHOOK_URL_HERE") {
+                CoroutineScope(Dispatchers.IO).launch {
+                    postJson(WEBHOOK_URL, payload.toString())
+                }
+            } else {
+                Log.w(TAG, "Webhook URL not set. Skipping network post.")
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "onNotificationPosted error", t)
+        }
     }
 
-    private fun escapeJson(s: String): String {
-        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        // optionally handle removals
+    }
+
+    private fun postJson(urlStr: String, jsonBody: String) {
+        try {
+            val url = URL(urlStr)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+            OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(jsonBody) }
+            val code = conn.responseCode
+            Log.i(TAG, "Webhook POST responded: $code")
+            conn.disconnect()
+        } catch (e: Exception) {
+            Log.e(TAG, "Webhook POST failed", e)
+        }
     }
 }
