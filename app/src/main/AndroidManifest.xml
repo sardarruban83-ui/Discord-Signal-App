@@ -7,7 +7,7 @@
     <!-- Needed to bind notification listener service on Android -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
 
-    <application
+    <application android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:allowBackup="true"
         android:label="TradeLinker"
         android:icon="@mipmap/ic_launcher"
