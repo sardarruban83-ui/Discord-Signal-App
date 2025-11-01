@@ -1,67 +1,71 @@
 package com.example.discordsignal
 
-import android.Manifest
+import android.content.Intent
 import android.os.Bundle
-import android.os.Environment
-import android.util.Log
+import android.provider.Settings
+import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
-import java.io.FileOutputStream
-import java.io.PrintWriter
-import java.io.StringWriter
 
 class MainActivity : AppCompatActivity() {
-    private val TAG = "TradeLinkerMain"
+
+    private lateinit var statusTv: TextView
+    private lateinit var btnOpenSettings: Button
+    private lateinit var btnRefresh: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Catch any startup crash and write it to a file for inspection
+        // keep crash-catcher from your previous version
         try {
             super.onCreate(savedInstanceState)
             setContentView(R.layout.activity_main)
 
-            // existing init code (if any) goes after this line
-            // Example: findViewById<Button>(R.id.myButton)?.setOnClickListener { ... }
+            statusTv = findViewById(R.id.statusText)
+            btnOpenSettings = findViewById(R.id.btnOpenSettings)
+            btnRefresh = findViewById(R.id.btnRefresh)
+
+            btnOpenSettings.setOnClickListener {
+                // Open Notification access settings
+                try {
+                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Cannot open settings: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            btnRefresh.setOnClickListener {
+                updateStatus()
+            }
+
+            // initial status
+            updateStatus()
 
         } catch (t: Throwable) {
-            // get full stacktrace
-            val sw = StringWriter()
-            t.printStackTrace(PrintWriter(sw))
-            val stack = sw.toString()
-
-            // 1) write to internal file (app internal storage)
+            // write minimal crash log to internal storage and rethrow
             try {
-                openFileOutput("crash_log.txt", MODE_PRIVATE).use {
-                    it.write(stack.toByteArray())
-                }
-            } catch (io: Exception) {
-                // ignore
-                Log.e(TAG, "Failed writing internal crash_log: ${io.message}")
-            }
-
-            // 2) attempt to write to public Download folder (best-effort - may be blocked on newer Android)
-            try {
-                val download = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val outFile = File(download, "tradelinker_crash_log.txt")
-                FileOutputStream(outFile, true).use { fos ->
-                    fos.write(stack.toByteArray())
-                }
-            } catch (io: Exception) {
-                Log.e(TAG, "Failed writing to /sdcard/Download (may need permission or restricted on this Android): ${io.message}")
-            }
-
-            // 3) also log to logcat (so adb/logcat will show)
-            Log.e(TAG, "Startup crash — stacktrace:\n$stack")
-
-            // show toast (user-visible)
-            Toast.makeText(
-                this,
-                "App crashed on start — crash log saved (best-effort). Check logcat or Downloads.",
-                Toast.LENGTH_LONG
-            ).show()
-
-            // rethrow so behavior is same as before (optional)
+                openFileOutput("crash_log.txt", MODE_PRIVATE).use { it.write(t.stackTraceToString().toByteArray()) }
+            } catch (_: Exception) { /* ignore */ }
+            Toast.makeText(this, "App crashed on start — crash log saved", Toast.LENGTH_LONG).show()
             throw t
+        }
+    }
+
+    private fun updateStatus() {
+        val enabled = isNotificationListenerEnabled()
+        if (enabled) {
+            statusTv.text = "Notification access: ✅ Registered"
+        } else {
+            statusTv.text = "Notification access: ❌ Not registered"
+        }
+    }
+
+    private fun isNotificationListenerEnabled(): Boolean {
+        return try {
+            val pkgName = packageName
+            val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+            flat.split(":").any { it.contains(pkgName) }
+        } catch (e: Exception) {
+            false
         }
     }
 }
