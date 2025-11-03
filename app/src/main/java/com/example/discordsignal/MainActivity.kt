@@ -18,6 +18,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRefresh: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    setContentView(R.layout.activity_main)
+    
         // keep crash-catcher from your previous version
         try {
             super.onCreate(savedInstanceState)
@@ -31,7 +34,7 @@ registerReceiver(NotifLogReceiver(findViewById(R.id.tv_log), findViewById(R.id.s
                 // Open Notification access settings
                 try {
                     startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                } catch (e: Exception) {
+  } catch (e: Exception) {
                     Toast.makeText(this, "Cannot open settings: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
