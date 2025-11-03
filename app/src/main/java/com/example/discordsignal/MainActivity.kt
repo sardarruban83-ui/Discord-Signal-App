@@ -1,84 +1,115 @@
 package com.example.discordsignal
 
 import android.os.Bundle
-import android.content.IntentFilter
-import android.widget.TextView
-import android.widget.Button
-import android.widget.ScrollView
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.view.View
+import android.content.SharedPreferences
+import okhttp3.*
+import org.json.JSONObject
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var logReceiver: BroadcastReceiver
-    private var tvLog: TextView? = null
-    private var scrollLog: ScrollView? = null
-    private var btnOpenSettings: Button? = null
-    private var btnRefresh: Button? = null
-    private var statusText: TextView? = null
+    private lateinit var webhookList: LinearLayout
+    private lateinit var addWebhookButton: Button
+    private lateinit var prefs: SharedPreferences
+    private val client = OkHttpClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // set your layout (ensure activity_main.xml exists)
         setContentView(R.layout.activity_main)
 
-        // runtime-safe id lookup: avoids compile-time dependency on missing R.id fields
-        fun id(name: String) : Int {
-            val resId = resources.getIdentifier(name, "id", packageName)
-            return if (resId != 0) resId else View.NO_ID
-        }
+        prefs = getSharedPreferences("webhooks", MODE_PRIVATE)
+        webhookList = findViewById(R.id.webhookList)
+        addWebhookButton = findViewById(R.id.addWebhook)
 
-        try {
-            val tvId = id("tv_log")
-            if (tvId != View.NO_ID) tvLog = findViewById(tvId)
-        } catch (_: Exception) {}
+        loadWebhooks()
 
-        try {
-            val scrollId = id("scroll_log")
-            if (scrollId != View.NO_ID) scrollLog = findViewById(scrollId)
-        } catch (_: Exception) {}
+        addWebhookButton.setOnClickListener {
+            val input = EditText(this)
+            input.hint = "Enter Discord webhook URL"
 
-        try {
-            val b1 = id("btn_open_settings")
-            if (b1 != View.NO_ID) btnOpenSettings = findViewById(b1)
-        } catch (_: Exception) {}
-
-        try {
-            val b2 = id("btn_refresh")
-            if (b2 != View.NO_ID) btnRefresh = findViewById(b2)
-        } catch (_: Exception) {}
-
-        try {
-            val s = id("statusText")
-            if (s != View.NO_ID) statusText = findViewById(s)
-        } catch (_: Exception) {}
-
-        // Register receiver to show live notifications forwarded by NotificationListener
-        logReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent == null) return
-                val pkg = intent.getStringExtra("pkg") ?: "?"
-                val title = intent.getStringExtra("title") ?: ""
-                val text = intent.getStringExtra("text") ?: ""
-                val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-                val line = "$time  [$pkg]  ${if (title.isNotEmpty()) title else text.take(60)}\n"
-                try {
-                    runOnUiThread {
-                        tvLog?.append(line)
-                        scrollLog?.post { scrollLog?.fullScroll(View.FOCUS_DOWN) }
+            AlertDialog.Builder(this)
+                .setTitle("Add Webhook")
+                .setView(input)
+                .setPositiveButton("Save") { _, _ ->
+                    val url = input.text.toString().trim()
+                    if (url.startsWith("https://discord.com/api/webhooks/")) {
+                        addWebhook(url)
+                    } else {
+                        Toast.makeText(this, "Invalid Discord webhook!", Toast.LENGTH_SHORT).show()
                     }
-                } catch (_: Exception) {}
-            }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
-        registerReceiver(logReceiver, IntentFilter("com.example.discordsignal.NOTIF_RECEIVED"))
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(logReceiver) } catch (_: Exception) {}
+    private fun loadWebhooks() {
+        webhookList.removeAllViews()
+        val allWebhooks = prefs.getStringSet("urls", mutableSetOf()) ?: mutableSetOf()
+        for (url in allWebhooks) {
+            val layout = LinearLayout(this)
+            layout.orientation = LinearLayout.HORIZONTAL
+
+            val textView = TextView(this)
+            textView.text = url.take(50) + if (url.length > 50) "..." else ""
+            textView.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+            val testButton = Button(this)
+            testButton.text = "Test"
+            testButton.setOnClickListener { sendDiscordMessage(url, "✅ Webhook test successful!") }
+
+            val deleteButton = Button(this)
+            deleteButton.text = "❌"
+            deleteButton.setOnClickListener {
+                removeWebhook(url)
+            }
+
+            layout.addView(textView)
+            layout.addView(testButton)
+            layout.addView(deleteButton)
+            webhookList.addView(layout)
+        }
     }
+
+    private fun addWebhook(url: String) {
+        val allWebhooks = prefs.getStringSet("urls", mutableSetOf()) ?: mutableSetOf()
+        allWebhooks.add(url)
+        prefs.edit().putStringSet("urls", allWebhooks).apply()
+        loadWebhooks()
+    }
+
+    private fun removeWebhook(url: String) {
+        val allWebhooks = prefs.getStringSet("urls", mutableSetOf()) ?: mutableSetOf()
+        allWebhooks.remove(url)
+        prefs.edit().putStringSet("urls", allWebhooks).apply()
+        loadWebhooks()
+    }
+
+    private fun sendDiscordMessage(webhookUrl: String, content: String) {
+        val json = JSONObject()
+        json.put("content", content)
+
+        val body = RequestBody.create(MediaType.parse("application/json"), json.toString())
+        val request = Request.Builder().url(webhookUrl).post(body).build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread { Toast.makeText(this@MainActivity, "Failed: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                runOnUiThread {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@MainActivity, "Sent successfully!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "Error: ${response.code()}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        })
+    }
+
+    // future: connect with your notification filter here
 }
