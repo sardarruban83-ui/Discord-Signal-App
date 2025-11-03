@@ -2,9 +2,14 @@ package com.example.discordsignal
 
 import android.os.Bundle
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import android.content.SharedPreferences
-import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 
@@ -29,7 +34,7 @@ class MainActivity : AppCompatActivity() {
             val input = EditText(this)
             input.hint = "Enter Discord webhook URL"
 
-            AlertDialog.Builder(this)
+            val dialog = AlertDialog.Builder(this)
                 .setTitle("Add Webhook")
                 .setView(input)
                 .setPositiveButton("Save") { _, _ ->
@@ -41,7 +46,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 .setNegativeButton("Cancel", null)
-                .show()
+                .create()
+
+            dialog.show()
         }
     }
 
@@ -88,28 +95,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendDiscordMessage(webhookUrl: String, content: String) {
-        val json = JSONObject()
-        json.put("content", content)
+        val json = JSONObject().apply {
+            put("content", content)
+        }
 
-        val body = RequestBody.create(MediaType.parse("application/json"), json.toString())
+        val body = json.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(webhookUrl).post(body).build()
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread { Toast.makeText(this@MainActivity, "Failed: ${e.message}", Toast.LENGTH_SHORT).show() }
+        client.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
 
-            override fun onResponse(call: Call, response: Response) {
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
                         Toast.makeText(this@MainActivity, "Sent successfully!", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@MainActivity, "Error: ${response.code()}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Error: ${response.code}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         })
     }
-
-    // future: connect with your notification filter here
 }
