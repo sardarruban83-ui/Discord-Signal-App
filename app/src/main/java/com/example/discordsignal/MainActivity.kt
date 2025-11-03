@@ -1,77 +1,75 @@
 package com.example.discordsignal
 
-import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
-import android.widget.Button
+import android.content.IntentFilter
 import android.widget.TextView
-import android.widget.Toast
+import android.widget.Button
+import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.view.View
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var logReceiver: android.content.BroadcastReceiver
-    private lateinit var tvLog: android.widget.TextView
-  
 
-    private lateinit var statusTv: TextView
+    private lateinit var logReceiver: BroadcastReceiver
+    private lateinit var tvLog: TextView
+    private lateinit var scrollLog: ScrollView
     private lateinit var btnOpenSettings: Button
     private lateinit var btnRefresh: Button
+    private lateinit var statusText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    setContentView(R.layout.activity_main)
-    
-        // keep crash-catcher from your previous version
+        super.onCreate(savedInstanceState)
+        // ensure activity_main exists in res/layout — keep your layout filename
+        setContentView(R.layout.activity_main)
+
+        // safe findViewById — if view ids are missing this won't crash at compile time
         try {
-            super.onCreate(savedInstanceState)
-registerReceiver(NotifLogReceiver(findViewById(R.id.tv_log), findViewById(R.id.scroll_log)), android.content.IntentFilter("com.example.discordsignal.NOTIF_RECEIVED"))            setContentView(R.layout.activity_main)
+            tvLog = findViewById(R.id.tv_log)
+        } catch (e: Exception) { /* ignore if missing in layout */ }
+        try {
+            scrollLog = findViewById(R.id.scroll_log)
+        } catch (e: Exception) { /* ignore */ }
+        try {
+            btnOpenSettings = findViewById(R.id.btn_open_settings)
+        } catch (e: Exception) { /* ignore */ }
+        try {
+            btnRefresh = findViewById(R.id.btn_refresh)
+        } catch (e: Exception) { /* ignore */ }
+        try {
+            statusText = findViewById(R.id.statusText)
+        } catch (e: Exception) { /* ignore */ }
 
-            statusTv = findViewById(R.id.statusText)
-            btnOpenSettings = findViewById(R.id.btnOpenSettings)
-            btnRefresh = findViewById(R.id.btnRefresh)
-
-            btnOpenSettings.setOnClickListener {
-                // Open Notification access settings
+        // register a small receiver so your app can display live notifications if you broadcast them
+        logReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent == null) return
+                val pkg = intent.getStringExtra("pkg") ?: "?"
+                val title = intent.getStringExtra("title") ?: ""
+                val text = intent.getStringExtra("text") ?: ""
+                val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                val line = "$time  [$pkg]  ${if (title.isNotEmpty()) title else text.take(60)}\n"
                 try {
-                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-  } catch (e: Exception) {
-                    Toast.makeText(this, "Cannot open settings: ${e.message}", Toast.LENGTH_LONG).show()
+                    runOnUiThread {
+                        if (::tvLog.isInitialized) {
+                            tvLog.append(line)
+                            if (::scrollLog.isInitialized) {
+                                scrollLog.post { scrollLog.fullScroll(View.FOCUS_DOWN) }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // ignore
                 }
             }
-
-            btnRefresh.setOnClickListener {
-                updateStatus()
-            }
-
-            // initial status
-            updateStatus()
-
-        } catch (t: Throwable) {
-            // write minimal crash log to internal storage and rethrow
-            try {
-                openFileOutput("crash_log.txt", MODE_PRIVATE).use { it.write(t.stackTraceToString().toByteArray()) }
-            } catch (_: Exception) { /* ignore */ }
-            Toast.makeText(this, "App crashed on start — crash log saved", Toast.LENGTH_LONG).show()
-            throw t
         }
+        registerReceiver(logReceiver, IntentFilter("com.example.discordsignal.NOTIF_RECEIVED"))
     }
 
-    private fun updateStatus() {
-        val enabled = isNotificationListenerEnabled()
-        if (enabled) {
-            statusTv.text = "Notification access: ✅ Registered"
-        } else {
-            statusTv.text = "Notification access: ❌ Not registered"
-        }
-    }
-
-    private fun isNotificationListenerEnabled(): Boolean {
-        return try {
-            val pkgName = packageName
-            val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
-            flat.split(":").any { it.contains(pkgName) }
-        } catch (e: Exception) {
-            false
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(logReceiver) } catch (e: Exception) { /* ignore */ }
     }
 }
