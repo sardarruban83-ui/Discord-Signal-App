@@ -1,47 +1,60 @@
 package com.example.discordsignal
 
-import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import android.app.Notification
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 
 class NotificationListener : NotificationListenerService() {
-    companion object {
-        const val TAG = "TLNotificationListener"
-    }
 
-    private fun publishLog(context: Context, pkg: String, title: String?, text: String?) {
-        val intent = android.content.Intent("com.example.discordsignal.NOTIF_RECEIVED")
-        intent.putExtra("pkg", pkg)
-        intent.putExtra("title", title)
-        intent.putExtra("text", text)
-        context.sendBroadcast(intent)
-    }
+    private val client = OkHttpClient()
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
         try {
-            val pkg = sbn.packageName ?: "unknown"
+            val packageName = sbn?.packageName ?: return
             val extras = sbn.notification.extras
-            val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
-            val textObj = extras.getCharSequence(Notification.EXTRA_TEXT)
-            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
-            val text = when {
-                !bigText.isNullOrEmpty() -> bigText.toString()
-                !textObj.isNullOrEmpty() -> textObj.toString()
-                else -> ""
+            val title = extras.getString("android.title") ?: ""
+            val text = extras.getString("android.text") ?: ""
+
+            // Combine multi-line messages if possible
+            val fullMessage = "$title $text".trim()
+
+            // Filter: only send if it's a trading signal (contains "Buying $" and "Targets")
+            if (fullMessage.contains("Buying $", ignoreCase = true) &&
+                (fullMessage.contains("Targets", ignoreCase = true) ||
+                 fullMessage.contains("Sl:", ignoreCase = true))
+            ) {
+                Log.d("SignalDetector", "Trading signal detected: $fullMessage")
+                sendToAllWebhooks(fullMessage)
             }
 
-            Log.i(TAG, "notif from=$pkg title='$title' text='$text'")
-
-            publishLog(applicationContext, pkg, title, text)
-
         } catch (e: Exception) {
-            Log.e(TAG, "error reading notification", e)
+            Log.e("SignalError", "Error processing notification: ${e.message}")
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        // optional: handle removal
+    private fun sendToAllWebhooks(signal: String) {
+        val prefs = getSharedPreferences("webhooks", MODE_PRIVATE)
+        val allWebhooks = prefs.getStringSet("urls", mutableSetOf()) ?: mutableSetOf()
+
+        for (url in allWebhooks) {
+            try {
+                val json = JSONObject().apply {
+                    put("content", signal)
+                }
+
+                val body = json.toString().toRequestBody("application/json".toMediaType())
+                val request = Request.Builder().url(url).post(body).build()
+                client.newCall(request).execute().use { response ->
+                    Log.d("WebhookSend", "Sent to $url (${response.code})")
+                }
+            } catch (e: Exception) {
+                Log.e("WebhookError", "Failed to send to $url: ${e.message}")
+            }
+        }
     }
 }
