@@ -21,7 +21,7 @@ class MainActivity : AppCompatActivity() {
         // keep crash-catcher from your previous version
         try {
             super.onCreate(savedInstanceState)
-registerReceiver(NotifLogReceiver(findViewById(R.id.tv_log), findViewById(R.id.scroll_log)), android.content.IntentFilter("com.example.discordsignal.NOTIF_RECEIVED"))            setContentView(R.layout.activity_main)
+            setContentView(R.layout.activity_main)
 
             statusTv = findViewById(R.id.statusText)
             btnOpenSettings = findViewById(R.id.btnOpenSettings)
