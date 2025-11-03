@@ -14,35 +14,50 @@ import android.view.View
 class MainActivity : AppCompatActivity() {
 
     private lateinit var logReceiver: BroadcastReceiver
-    private lateinit var tvLog: TextView
-    private lateinit var scrollLog: ScrollView
-    private lateinit var btnOpenSettings: Button
-    private lateinit var btnRefresh: Button
-    private lateinit var statusText: TextView
+    private var tvLog: TextView? = null
+    private var scrollLog: ScrollView? = null
+    private var btnOpenSettings: Button? = null
+    private var btnRefresh: Button? = null
+    private var statusText: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // ensure activity_main exists in res/layout — keep your layout filename
+
+        // set your layout (ensure activity_main.xml exists)
         setContentView(R.layout.activity_main)
 
-        // safe findViewById — if view ids are missing this won't crash at compile time
-        try {
-            tvLog = findViewById(R.id.tv_log)
-        } catch (e: Exception) { /* ignore if missing in layout */ }
-        try {
-            scrollLog = findViewById(R.id.scroll_log)
-        } catch (e: Exception) { /* ignore */ }
-        try {
-            btnOpenSettings = findViewById(R.id.btn_open_settings)
-        } catch (e: Exception) { /* ignore */ }
-        try {
-            btnRefresh = findViewById(R.id.btn_refresh)
-        } catch (e: Exception) { /* ignore */ }
-        try {
-            statusText = findViewById(R.id.statusText)
-        } catch (e: Exception) { /* ignore */ }
+        // runtime-safe id lookup: avoids compile-time dependency on missing R.id fields
+        fun id(name: String) : Int {
+            val resId = resources.getIdentifier(name, "id", packageName)
+            return if (resId != 0) resId else View.NO_ID
+        }
 
-        // register a small receiver so your app can display live notifications if you broadcast them
+        try {
+            val tvId = id("tv_log")
+            if (tvId != View.NO_ID) tvLog = findViewById(tvId)
+        } catch (_: Exception) {}
+
+        try {
+            val scrollId = id("scroll_log")
+            if (scrollId != View.NO_ID) scrollLog = findViewById(scrollId)
+        } catch (_: Exception) {}
+
+        try {
+            val b1 = id("btn_open_settings")
+            if (b1 != View.NO_ID) btnOpenSettings = findViewById(b1)
+        } catch (_: Exception) {}
+
+        try {
+            val b2 = id("btn_refresh")
+            if (b2 != View.NO_ID) btnRefresh = findViewById(b2)
+        } catch (_: Exception) {}
+
+        try {
+            val s = id("statusText")
+            if (s != View.NO_ID) statusText = findViewById(s)
+        } catch (_: Exception) {}
+
+        // Register receiver to show live notifications forwarded by NotificationListener
         logReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent == null) return
@@ -53,16 +68,10 @@ class MainActivity : AppCompatActivity() {
                 val line = "$time  [$pkg]  ${if (title.isNotEmpty()) title else text.take(60)}\n"
                 try {
                     runOnUiThread {
-                        if (::tvLog.isInitialized) {
-                            tvLog.append(line)
-                            if (::scrollLog.isInitialized) {
-                                scrollLog.post { scrollLog.fullScroll(View.FOCUS_DOWN) }
-                            }
-                        }
+                        tvLog?.append(line)
+                        scrollLog?.post { scrollLog?.fullScroll(View.FOCUS_DOWN) }
                     }
-                } catch (e: Exception) {
-                    // ignore
-                }
+                } catch (_: Exception) {}
             }
         }
         registerReceiver(logReceiver, IntentFilter("com.example.discordsignal.NOTIF_RECEIVED"))
@@ -70,6 +79,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unregisterReceiver(logReceiver) } catch (e: Exception) { /* ignore */ }
+        try { unregisterReceiver(logReceiver) } catch (_: Exception) {}
     }
 }
