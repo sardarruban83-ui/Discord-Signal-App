@@ -1,53 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical" android:layout_width="match_parent"
-    android:layout_height="match_parent" android:padding="12dp"
-    android:background="#071124">
+    android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:padding="12dp">
 
     <TextView
-        android:id="@+id/tv_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
-        android:text="Notification access: ✅ Registered"
-        android:textSize="18sp"
-        android:layout_marginBottom="8dp"/>
-
-    <Button
-        android:id="@+id/btn_open_access"
+        android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="OPEN NOTIFICATION ACCESS" />
+        android:text="Status" />
 
-    <Button
-        android:id="@+id/btn_refresh"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="REFRESH STATUS"
-        android:layout_marginTop="8dp"/>
+        android:orientation="horizontal"
+        android:paddingTop="8dp">
 
-    <TextView
-        android:layout_marginTop="12dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Live log:"
-        android:textColor="#bbbbbb" />
+        <Button
+            android:id="@+id/btnOpenSettings"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Open Notif Settings" />
+
+        <Button
+            android:id="@+id/btnRefresh"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Refresh" />
+    </LinearLayout>
 
     <ScrollView
         android:id="@+id/scroll_log"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#051018"
-        android:padding="8dp"
-        android:layout_marginTop="8dp">
+        android:paddingTop="12dp">
 
         <TextView
             android:id="@+id/tv_log"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#9fe7c8"
-            android:textSize="14sp"
-            android:lineSpacingExtra="2dp"/>
+            android:textIsSelectable="true"
+            android:textSize="12sp"/>
     </ScrollView>
 </LinearLayout>
