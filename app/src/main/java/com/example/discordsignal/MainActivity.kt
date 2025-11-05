@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
                     val forwarded = intent.getBooleanExtra("forwarded", false)
                     val msg = intent.getStringExtra("message") ?: ""
                     val sym = intent.getStringExtra("symbol") ?: ""
-                    appendLog("FORWARD ${if (forwarded) "OK" else "FAIL"} $sym -> ${short(url, msg)}")
+                    appendLog("FORWARD ${if (forwarded) "OK" else "FAIL"} $sym -> ${short(url, msg)} | ${msg}")
                 }
             }
         }
