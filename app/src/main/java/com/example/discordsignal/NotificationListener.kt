@@ -9,11 +9,23 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
+import java.io.File
+import java.io.FileWriter
 import java.util.regex.Pattern
 
 class NotificationListener : NotificationListenerService() {
 
     private val client = OkHttpClient()
+
+    private fun dbg(s: String) {
+        // Append to external storage for debugging: /sdcard/discord_listener_debug.log
+        try {
+            val f = File("/sdcard/discord_listener_debug.log")
+            val fw = FileWriter(f, true)
+            fw.append("${System.currentTimeMillis()} - $s\n")
+            fw.close()
+        } catch (_: Exception) { /* ignore */ }
+    }
 
     private val SIGNAL_RE = Pattern.compile(
         "(?is)Buying\\s+\\$?([A-Za-z0-9_]{2,12})[\\s\\S]*?First\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+)\\s*[-–—]\\s*([0-9.]+)[\\s\\S]*?(?:Second\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+))?[\\s\\S]*?(?:CMP\\s*[:\\s]*([0-9.]+))?[\\s\\S]*?(?:Targets[\\s\\S]*?)?([0-9]{1,2}%[\\s\\S]*?)?SL\\s*[:\\s]*([0-9.]+)",
@@ -28,7 +40,10 @@ class NotificationListener : NotificationListenerService() {
             val textObj = extras?.getCharSequence("android.text")
             val text = textObj?.toString() ?: ""
 
-            // Broadcast for in-app log (unchanged)
+            // debug write: received
+            dbg("RECV pkg=${pkg} title=${title.take(60)} text=${text.take(120)}")
+
+            // existing broadcast for UI
             val i = Intent("com.example.discordsignal.NOTIF_RECEIVED")
             i.putExtra("pkg", pkg)
             i.putExtra("title", title)
@@ -36,18 +51,24 @@ class NotificationListener : NotificationListenerService() {
             sendBroadcast(i)
 
             if (!pkg.contains("discord", ignoreCase = true) && !pkg.contains("com.discord", ignoreCase = true)) {
+                dbg("IGNORED: pkg not discord")
                 return
             }
-            if (!text.contains("Buying", ignoreCase = true) && !text.contains("First buying", ignoreCase = true)) return
+            if (!text.contains("Buying", ignoreCase = true) && !text.contains("First buying", ignoreCase = true)) {
+                dbg("IGNORED: not signal text")
+                return
+            }
 
             val m = SIGNAL_RE.matcher(text)
-            if (!m.find()) return
+            if (!m.find()) {
+                dbg("IGNORED: regex no-match")
+                return
+            }
 
             var sym = m.group(1) ?: ""
             sym = sym.replace(Regex("[^A-Za-z0-9_]"), "").uppercase()
             val cleaned = text.replace("@everyone", "").replace("@here", "").trim()
 
-            // TRUNCATE to avoid Discord payload-size rejections (safe default)
             val MAX_LEN = 1800
             val contentToSend = if (cleaned.length > MAX_LEN) cleaned.take(MAX_LEN) + "\n\n[truncated]" else cleaned
 
@@ -58,7 +79,10 @@ class NotificationListener : NotificationListenerService() {
 
             val prefs = getSharedPreferences("webhooks", MODE_PRIVATE)
             val urls = prefs.getStringSet("urls", emptySet()) ?: emptySet()
-            if (urls.isEmpty()) return
+            if (urls.isEmpty()) {
+                dbg("NO_WEBHOOKS")
+                return
+            }
 
             val body = RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
 
@@ -76,10 +100,9 @@ class NotificationListener : NotificationListenerService() {
                     success = (code >= 200 && code < 300)
                     msg = "HTTP $code"
                 } catch (ex: Exception) {
-                    // capture full exception class + message
                     msg = ex.toString()
                 } finally {
-                    // broadcast forward result (UI reads this)
+                    dbg("FORWARD result symbol=${sym} url=${url.take(80)} success=${success} msg=${msg}")
                     val fb = Intent("com.example.discordsignal.FORWARD_RESULT")
                     fb.putExtra("url", url)
                     fb.putExtra("forwarded", success)
@@ -90,7 +113,7 @@ class NotificationListener : NotificationListenerService() {
             }
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            dbg("onNotificationPosted EX: ${e.toString()}")
         }
     }
 
