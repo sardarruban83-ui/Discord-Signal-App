@@ -2,16 +2,22 @@ package com.example.discordsignal
 
 import android.os.Bundle
 import android.widget.*
+import android.content.SharedPreferences
+import android.provider.Settings
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.BroadcastReceiver
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import android.content.SharedPreferences
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,6 +25,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var addWebhookButton: Button
     private lateinit var prefs: SharedPreferences
     private val client = OkHttpClient()
+
+    // new UI
+    private lateinit var tvListenerStatus: TextView
+    private lateinit var tvLog: TextView
+    private lateinit var logScroll: ScrollView
+
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent == null) return
+            when (intent.action) {
+                "com.example.discordsignal.NOTIF_RECEIVED" -> {
+                    val pkg = intent.getStringExtra("pkg") ?: "?"
+                    val title = intent.getStringExtra("title") ?: ""
+                    val text = intent.getStringExtra("text") ?: ""
+                    appendLog("RECV from [$pkg]: ${short(title, text)}")
+                }
+                "com.example.discordsignal.FORWARD_RESULT" -> {
+                    val url = intent.getStringExtra("url") ?: ""
+                    val forwarded = intent.getBooleanExtra("forwarded", false)
+                    val msg = intent.getStringExtra("message") ?: ""
+                    val sym = intent.getStringExtra("symbol") ?: ""
+                    appendLog("FORWARD ${if (forwarded) "OK" else "FAIL"} $sym -> ${short(url, msg)}")
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,7 +60,12 @@ class MainActivity : AppCompatActivity() {
         webhookList = findViewById(R.id.webhookList)
         addWebhookButton = findViewById(R.id.addWebhook)
 
+        tvListenerStatus = findViewById(R.id.tv_listener_status)
+        tvLog = findViewById(R.id.tv_log)
+        logScroll = findViewById(R.id.logScroll)
+
         loadWebhooks()
+        updateListenerStatus()
 
         addWebhookButton.setOnClickListener {
             val input = EditText(this)
@@ -50,6 +87,47 @@ class MainActivity : AppCompatActivity() {
 
             dialog.show()
         }
+
+        // register for notification and forward result broadcasts
+        val f = IntentFilter()
+        f.addAction("com.example.discordsignal.NOTIF_RECEIVED")
+        f.addAction("com.example.discordsignal.FORWARD_RESULT")
+        registerReceiver(receiver, f)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(receiver) } catch (_: Exception) {}
+    }
+
+    private fun updateListenerStatus() {
+        val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+        val pkg = packageName
+        val enabled = enabledListeners.contains(pkg)
+        tvListenerStatus.text = if (enabled) "ENABLED" else "DISABLED"
+        tvListenerStatus.setTextColor(if (enabled) 0xFF006400.toInt() else 0xFFFF0000.toInt())
+        // if disabled, clicking the status opens the notification access settings
+        tvListenerStatus.setOnClickListener {
+            if (!enabled) {
+                startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            } else {
+                Toast.makeText(this, "Notification access is enabled", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun appendLog(line: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        runOnUiThread {
+            tvLog.append("$time  $line\n")
+            // scroll to bottom
+            logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+        }
+    }
+
+    private fun short(a: String, b: String): String {
+        val s = if (a.isNotEmpty()) a else b
+        return if (s.length > 60) s.take(60) + "..." else s
     }
 
     private fun loadWebhooks() {

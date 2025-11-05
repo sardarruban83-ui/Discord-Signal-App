@@ -1,34 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="12dp">
 
-    <TextView
-        android:text="Webhook Manager"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="10dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+    <!-- New status row -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:gravity="center_vertical">
 
+        <TextView
+            android:id="@+id/tv_listener_status_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Notification Access:"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tv_listener_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Unknown"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- Existing webhook list -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
+        android:layout_height="160dp"
+        android:fillViewport="true"
+        android:background="#F4F4F4"
+        android:padding="6dp">
         <LinearLayout
             android:id="@+id/webhookList"
             android:orientation="vertical"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"/>
     </ScrollView>
 
     <Button
         android:id="@+id/addWebhook"
-        android:text="➕ Add Webhook"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="+ ADD WEBHOOK"
+        android:layout_marginTop="8dp"/>
+
+    <!-- New log area -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Forward Log:"
+        android:textStyle="bold"
+        android:layout_marginTop="12dp"/>
+
+    <ScrollView
+        android:id="@+id/logScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF"
+        android:padding="6dp">
+
+        <TextView
+            android:id="@+id/tv_log"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textColor="#111111" />
+    </ScrollView>
 
 </LinearLayout>
