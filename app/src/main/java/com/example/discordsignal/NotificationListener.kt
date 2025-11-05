@@ -1,5 +1,6 @@
 package com.example.discordsignal
 
+import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.content.Intent
@@ -9,26 +10,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
-import java.io.File
-import java.io.FileWriter
 import java.util.regex.Pattern
+import java.lang.Thread.sleep
 
 class NotificationListener : NotificationListenerService() {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder().build()
 
-    private fun dbg(s: String) {
-        // Append to external storage for debugging: /sdcard/discord_listener_debug.log
-        try {
-            val f = File("/sdcard/discord_listener_debug.log")
-            val fw = FileWriter(f, true)
-            fw.append("${System.currentTimeMillis()} - $s\n")
-            fw.close()
-        } catch (_: Exception) { /* ignore */ }
-    }
-
+    // Regex tuned to the format you provided (case-insensitive, robust whitespace)
     private val SIGNAL_RE = Pattern.compile(
-        "(?is)Buying\\s+\\$?([A-Za-z0-9_]{2,12})[\\s\\S]*?First\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+)\\s*[-–—]\\s*([0-9.]+)[\\s\\S]*?(?:Second\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+))?[\\s\\S]*?(?:CMP\\s*[:\\s]*([0-9.]+))?[\\s\\S]*?(?:Targets[\\s\\S]*?)?([0-9]{1,2}%[\\s\\S]*?)?SL\\s*[:\\s]*([0-9.]+)",
+        "(?is)Buying\\s+\\$?([A-Za-z0-9_]{1,20})\\b[\\s\\S]*?First\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+)\\s*[-–—]\\s*([0-9.]+).*?Second\\s*buy(?:ing)?\\s*[:\\s]*([0-9.]+)?[\\s\\S]*?CMP\\s*[:\\s]*([0-9.]+)?[\\s\\S]*?SL\\s*[:\\s]*([0-9.]+)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -40,80 +31,89 @@ class NotificationListener : NotificationListenerService() {
             val textObj = extras?.getCharSequence("android.text")
             val text = textObj?.toString() ?: ""
 
-            // debug write: received
-            dbg("RECV pkg=${pkg} title=${title.take(60)} text=${text.take(120)}")
-
-            // existing broadcast for UI
+            // Always broadcast raw notification to UI log (so app shows everything)
             val i = Intent("com.example.discordsignal.NOTIF_RECEIVED")
             i.putExtra("pkg", pkg)
             i.putExtra("title", title)
             i.putExtra("text", text)
             sendBroadcast(i)
 
+            // Only parse/forward signals coming from Discord packages
             if (!pkg.contains("discord", ignoreCase = true) && !pkg.contains("com.discord", ignoreCase = true)) {
-                dbg("IGNORED: pkg not discord")
                 return
             }
+
+            // Quick check for keyword to reduce regex attempts
             if (!text.contains("Buying", ignoreCase = true) && !text.contains("First buying", ignoreCase = true)) {
-                dbg("IGNORED: not signal text")
                 return
             }
 
             val m = SIGNAL_RE.matcher(text)
             if (!m.find()) {
-                dbg("IGNORED: regex no-match")
+                // not a full signal in expected format
                 return
             }
 
-            var sym = m.group(1) ?: ""
-            sym = sym.replace(Regex("[^A-Za-z0-9_]"), "").uppercase()
+            // Extract symbol and other fields (if present)
+            var symbol = m.group(1) ?: ""
+            symbol = symbol.replace(Regex("[^A-Za-z0-9_]"), "").uppercase()
+
+            // prepare cleaned content (remove mentions)
             val cleaned = text.replace("@everyone", "").replace("@here", "").trim()
 
+            // truncate to safe limit (Discord ~2000 chars per message; we use margin)
             val MAX_LEN = 1800
             val contentToSend = if (cleaned.length > MAX_LEN) cleaned.take(MAX_LEN) + "\n\n[truncated]" else cleaned
 
+            // prepare JSON payload
             val json = JSONObject()
             json.put("content", contentToSend)
-            json.put("author", pkg)
-            json.put("parsed_symbol", sym)
+            json.put("parsed_symbol", symbol)
+            json.put("source_pkg", pkg)
 
             val prefs = getSharedPreferences("webhooks", MODE_PRIVATE)
             val urls = prefs.getStringSet("urls", emptySet()) ?: emptySet()
-            if (urls.isEmpty()) {
-                dbg("NO_WEBHOOKS")
-                return
-            }
+            if (urls.isEmpty()) return
 
             val body = RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
 
+            // Forward to every webhook with small retry logic
             for (url in urls) {
                 var success = false
-                var msg = ""
-                try {
-                    val request = Request.Builder()
-                        .url(url)
-                        .post(body)
-                        .build()
-                    val resp = client.newCall(request).execute()
-                    val code = resp.code
-                    resp.close()
-                    success = (code >= 200 && code < 300)
-                    msg = "HTTP $code"
-                } catch (ex: Exception) {
-                    msg = ex.toString()
-                } finally {
-                    dbg("FORWARD result symbol=${sym} url=${url.take(80)} success=${success} msg=${msg}")
-                    val fb = Intent("com.example.discordsignal.FORWARD_RESULT")
-                    fb.putExtra("url", url)
-                    fb.putExtra("forwarded", success)
-                    fb.putExtra("message", msg)
-                    fb.putExtra("symbol", sym)
-                    sendBroadcast(fb)
+                var message = ""
+                var attempts = 0
+                while (attempts < 3 && !success) { // 1 initial + up to 2 retries
+                    attempts++
+                    try {
+                        val req = Request.Builder().url(url).post(body).build()
+                        val resp = client.newCall(req).execute()
+                        val code = resp.code
+                        resp.close()
+                        success = (code in 200..299)
+                        message = "HTTP $code"
+                        if (!success && (code == 429)) {
+                            // rate limited -> brief wait then retry
+                            Thread.sleep(600L)
+                        }
+                    } catch (ex: Exception) {
+                        message = ex.toString()
+                        // backoff slightly before retry
+                        try { Thread.sleep(300L) } catch (_: InterruptedException) {}
+                    }
                 }
+
+                // broadcast result to UI (MainActivity will append to log)
+                val fb = Intent("com.example.discordsignal.FORWARD_RESULT")
+                fb.putExtra("url", url)
+                fb.putExtra("forwarded", success)
+                fb.putExtra("message", message)
+                fb.putExtra("symbol", symbol)
+                sendBroadcast(fb)
             }
 
         } catch (e: Exception) {
-            dbg("onNotificationPosted EX: ${e.toString()}")
+            // don't crash the service; just print
+            e.printStackTrace()
         }
     }
 

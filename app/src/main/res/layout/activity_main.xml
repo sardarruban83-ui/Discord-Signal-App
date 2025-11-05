@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:padding="12dp">
 
-    <!-- New status row -->
+    <!-- Status row -->
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
@@ -27,7 +27,7 @@
             android:layout_marginStart="8dp"/>
     </LinearLayout>
 
-    <!-- Existing webhook list -->
+    <!-- webhook list (existing functionality) -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="160dp"
@@ -48,7 +48,7 @@
         android:text="+ ADD WEBHOOK"
         android:layout_marginTop="8dp"/>
 
-    <!-- New log area -->
+    <!-- Forward Log -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -1,6 +1,5 @@
 package com.example.discordsignal
 
-import okhttp3.RequestBody.Companion.toRequestBody
 import android.os.Bundle
 import android.widget.*
 import android.content.SharedPreferences
@@ -13,7 +12,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import java.io.IOException
@@ -47,6 +46,7 @@ class MainActivity : AppCompatActivity() {
                     val forwarded = intent.getBooleanExtra("forwarded", false)
                     val msg = intent.getStringExtra("message") ?: ""
                     val sym = intent.getStringExtra("symbol") ?: ""
+                    // show full message; shorten url for display
                     appendLog("FORWARD ${if (forwarded) "OK" else "FAIL"} $sym -> ${short(url, msg)} | ${msg}")
                 }
             }
@@ -107,7 +107,6 @@ class MainActivity : AppCompatActivity() {
         val enabled = enabledListeners.contains(pkg)
         tvListenerStatus.text = if (enabled) "ENABLED" else "DISABLED"
         tvListenerStatus.setTextColor(if (enabled) 0xFF006400.toInt() else 0xFFFF0000.toInt())
-        // if disabled, clicking the status opens the notification access settings
         tvListenerStatus.setOnClickListener {
             if (!enabled) {
                 startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
@@ -121,7 +120,6 @@ class MainActivity : AppCompatActivity() {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         runOnUiThread {
             tvLog.append("$time  $line\n")
-            // scroll to bottom
             logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
         }
     }
