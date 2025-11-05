@@ -28,7 +28,7 @@ class NotificationListener : NotificationListenerService() {
             val textObj = extras?.getCharSequence("android.text")
             val text = textObj?.toString() ?: ""
 
-            // existing in-app log broadcast
+            // Broadcast for in-app log (unchanged)
             val i = Intent("com.example.discordsignal.NOTIF_RECEIVED")
             i.putExtra("pkg", pkg)
             i.putExtra("title", title)
@@ -47,8 +47,12 @@ class NotificationListener : NotificationListenerService() {
             sym = sym.replace(Regex("[^A-Za-z0-9_]"), "").uppercase()
             val cleaned = text.replace("@everyone", "").replace("@here", "").trim()
 
+            // TRUNCATE to avoid Discord payload-size rejections (safe default)
+            val MAX_LEN = 1800
+            val contentToSend = if (cleaned.length > MAX_LEN) cleaned.take(MAX_LEN) + "\n\n[truncated]" else cleaned
+
             val json = JSONObject()
-            json.put("content", cleaned)
+            json.put("content", contentToSend)
             json.put("author", pkg)
             json.put("parsed_symbol", sym)
 
@@ -72,9 +76,10 @@ class NotificationListener : NotificationListenerService() {
                     success = (code >= 200 && code < 300)
                     msg = "HTTP $code"
                 } catch (ex: Exception) {
-                    msg = ex.message ?: "exception"
+                    // capture full exception class + message
+                    msg = ex.toString()
                 } finally {
-                    // broadcast forward result for UI to consume
+                    // broadcast forward result (UI reads this)
                     val fb = Intent("com.example.discordsignal.FORWARD_RESULT")
                     fb.putExtra("url", url)
                     fb.putExtra("forwarded", success)
